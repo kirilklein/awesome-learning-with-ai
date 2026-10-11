@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How a token bucket rate limiter works</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f3f5f7; --surface:#ffffff; --band:#e7ebf0; --rule:#d0d7de; --slot:#8793a0;
+  --ink:#16202b; --ink-2:#3d4955; --ink-3:#56626f;
+  --token:#e6a817; --token-edge:#9a6b00; --token-ink:#755100; --token-tint:#fbf1d6;
+  --ok:#0b7566; --ok-tint:#dcefeb; --no:#b8302a; --no-tint:#f6dedc; --req:#5b6b7d;
+  --code-bg:#edf0f4; --kw:#1d4f91;
+  --display:"IBM Plex Serif",Georgia,"Times New Roman",serif;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px; --s8:72px;
+  --radius:10px; --wrap:1160px; --nav-h:56px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 17px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
+.wrap{max-width:var(--wrap);margin:0 auto;padding-inline:clamp(16px,4vw,40px)}
+section{padding-block:var(--s8);scroll-margin-top:var(--nav-h)}
+section.white{background:var(--surface);border-block:1px solid var(--rule)}
+section.tint{background:var(--band)}
+h1,h2{font-family:var(--display);font-weight:600;letter-spacing:-.01em;margin:0}
+h1{font-size:clamp(2.1rem,4.6vw,3.4rem);line-height:1.08}
+h2{font-size:clamp(1.55rem,2.8vw,2.15rem);line-height:1.15;margin-bottom:var(--s5)}
+h3{font:600 1.05rem/1.3 var(--sans);margin:0}
+p{margin:0 0 var(--s4);max-width:66ch}
+a{color:var(--ink);text-underline-offset:3px}
+code,.num{font-family:var(--mono)}
+.eyebrow{display:flex;align-items:center;gap:var(--s2);font:600 13px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--token-ink);margin-bottom:var(--s4)}
+.eyebrow::before{content:"";width:10px;height:10px;border-radius:50%;background:var(--token);border:1.5px solid var(--token-edge);flex:none}
+.cols{display:grid;gap:var(--s7);grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}
+.cols.lean{grid-template-columns:minmax(0,5fr) minmax(0,4fr)}
+.cols.tune{grid-template-columns:minmax(0,4fr) minmax(0,7fr)}
+
+/* nav */
+.top{position:sticky;top:0;z-index:10;background:var(--surface);border-bottom:1px solid var(--rule)}
+.top .wrap{display:flex;align-items:center;gap:var(--s5);height:var(--nav-h)}
+.brand{display:flex;align-items:center;gap:var(--s2);min-height:40px;font:600 15px/1 var(--display);text-decoration:none;white-space:nowrap}
+.brand i{width:14px;height:14px;border-radius:50%;background:var(--token);border:2px solid var(--token-edge)}
+.top nav{display:flex;gap:var(--s1);margin-left:auto;overflow-x:auto;scrollbar-width:none}
+.top nav::-webkit-scrollbar{display:none}
+.top nav a{font:500 14px/1 var(--sans);color:var(--ink-2);text-decoration:none;padding:13px var(--s3);border-radius:6px;white-space:nowrap}
+.top nav a:hover{background:var(--band);color:var(--ink)}
+
+/* hero */
+.hero{padding-block:var(--s8) var(--s7)}
+.hero .cols{align-items:center}
+.hero p.lede{font-size:1.2rem;line-height:1.55;color:var(--ink-2);margin-top:var(--s5);max-width:56ch}
+.meta{font:500 13px/1.4 var(--mono);color:var(--ink-3);margin-top:var(--s5)}
+.diagram{width:100%;max-width:440px;height:auto;display:block;margin-inline:auto}
+.diagram text{font-family:var(--sans);fill:var(--ink-2);font-size:13px}
+.diagram text.t{font-weight:600;font-size:15px;fill:var(--ink)}
+.strip{width:100%;max-width:460px;height:auto;display:block;margin-top:var(--s6)}
+.strip text{font-family:var(--sans);font-size:13px;fill:var(--ink-2)}
+.strip text.t{font-weight:600;fill:var(--ink)}
+.strip text.ax{font-family:var(--mono);font-size:11px;fill:var(--ink-3)}
+
+/* code + aside */
+pre{margin:0;background:var(--code-bg);border:1px solid var(--rule);border-radius:var(--radius);padding:var(--s4) var(--s5);overflow-x:auto;font:400 14px/1.65 var(--mono);color:var(--ink)}
+pre .k{color:var(--kw);font-weight:500} pre .c{color:var(--ink-3)} pre .s{color:var(--ok)}
+figure{margin:0}
+figcaption{font-size:14px;line-height:1.5;color:var(--ink-3);margin-top:var(--s3);max-width:60ch}
+
+/* rules */
+ol.rules{list-style:none;margin:var(--s5) 0;padding:0;counter-reset:r;display:grid;gap:var(--s4);max-width:60ch}
+ol.rules li{counter-increment:r;display:grid;grid-template-columns:36px 1fr;gap:var(--s3);align-items:start}
+ol.rules li::before{content:counter(r);width:32px;height:32px;border-radius:50%;background:var(--token);border:2px solid var(--token-edge);color:var(--ink);font:600 15px/28px var(--mono);text-align:center}
+ol.rules b{font-weight:600}
+
+/* widgets */
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius)}
+.card-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:var(--s2) var(--s4);padding:var(--s4) var(--s5);border-bottom:1px solid var(--rule)}
+.card-head span{font:400 13px/1.3 var(--mono);color:var(--ink-3)}
+.card-body{padding:var(--s5)}
+button{font:600 15px/1 var(--sans);min-height:44px;padding:0 var(--s4);border-radius:8px;border:1.5px solid var(--ink);background:transparent;color:var(--ink);cursor:pointer}
+button:hover{background:var(--band)}
+button.primary{background:var(--ink);color:#fff}
+button.primary:hover{background:#2a3848}
+button.quiet{border-color:transparent;color:var(--ink-2);font-weight:500;text-decoration:underline;text-underline-offset:3px;padding:0 var(--s2)}
+button:focus-visible,input:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid var(--kw);outline-offset:2px}
+.btns{display:flex;flex-wrap:wrap;gap:var(--s2)}
+input[type=range]{width:100%;height:40px;margin:0;accent-color:var(--ink);cursor:pointer}
+.field label{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s3);font-weight:600;font-size:15px}
+.field output{font:600 1.35rem/1 var(--mono);color:var(--ink)}
+.field output small{font:400 13px/1 var(--mono);color:var(--ink-3)}
+canvas{display:block;width:100%}
+.legend{list-style:none;display:flex;flex-wrap:wrap;gap:var(--s2) var(--s5);margin:var(--s3) 0 0;padding:0;font-size:13px;color:var(--ink-2)}
+.legend li{display:flex;align-items:center;gap:var(--s2)}
+.legend i{flex:none;display:block}
+.sw-line{width:18px;height:3px;background:var(--token-edge)}
+.sw-dash{width:18px;height:0;border-top:2px dashed var(--ink-3)}
+.sw-ok,.sw-no,.sw-req{width:10px;height:10px;border-radius:50%}
+.sw-ok{background:var(--ok)} .sw-no{background:var(--no)} .sw-req{background:var(--req)}
+.sw-tick{width:3px;height:12px}
+
+/* hand demo */
+.hand{display:grid;grid-template-columns:auto 1fr;gap:var(--s5);align-items:start}
+.bucket{display:grid;grid-template-columns:repeat(2,30px);grid-template-rows:repeat(5,30px);gap:6px;padding:10px;border:2px solid var(--ink);border-top:0;border-radius:0 0 16px 16px}
+.bucket span{width:30px;height:30px;aspect-ratio:1;border-radius:50%;border:1.5px dashed var(--slot)}
+.bucket span.on{background:var(--token);border:2px solid var(--token-edge)}
+.count{font:600 1.35rem/1.2 var(--mono);margin-bottom:var(--s4)}
+.count small{font:400 14px/1 var(--sans);color:var(--ink-3)}
+.log{list-style:none;margin:var(--s4) 0 0;padding:0;font-size:14px;line-height:1.4;min-height:164px}
+.log li{display:grid;grid-template-columns:14px 1fr;gap:var(--s2);align-items:baseline;padding:var(--s1) 0;color:var(--ink-3)}
+.log li:first-child{color:var(--ink);font-weight:500}
+.log li::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--req)}
+.log li.ok::before{background:var(--ok)} .log li.no::before{background:var(--no)} .log li.add::before{background:var(--token);outline:1px solid var(--token-edge)}
+
+/* simulation */
+.sim-controls{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--s4) var(--s6);align-items:end;padding:var(--s5);border-bottom:1px solid var(--rule)}
+.presets{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s2);font-size:13px;color:var(--ink-3)}
+.presets button{min-height:40px;min-width:48px;padding:0 var(--s3);font:500 13px/1 var(--mono);border-color:var(--rule)}
+.presets button[aria-pressed=true]{border-color:var(--ink);background:var(--band)}
+.sim-panels{display:grid;grid-template-columns:minmax(0,9fr) minmax(0,11fr)}
+.sim-panels>div{padding:var(--s5)}
+.sim-panels>div+div{border-left:1px solid var(--rule)}
+.panel-label{font:600 13px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin-bottom:var(--s3)}
+#flow,#history{height:340px}
+.sim-foot{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--s5) var(--s6);align-items:center;padding:var(--s5);border-top:1px solid var(--rule);background:var(--paper);border-radius:0 0 var(--radius) var(--radius)}
+.verdict{margin:0;font-size:16px;line-height:1.5;max-width:62ch}
+.verdict b{font-weight:600}
+.verdict span{display:block;margin-top:var(--s2);color:var(--ink-2)}
+.readouts{display:flex;gap:var(--s6);margin:0}
+.readnote{margin:var(--s2) 0 0;font-size:13px;line-height:1.4;color:var(--ink-3);max-width:44ch}
+.readouts div{min-width:92px}
+.readouts dt{font-size:13px;line-height:1.3;color:var(--ink-3)}
+.readouts dd{margin:var(--s1) 0 0;font:600 1.5rem/1 var(--mono);white-space:nowrap}
+.readouts dd small{font:400 12px/1 var(--mono);color:var(--ink-3)}
+.readouts .a dd{color:var(--ok)} .readouts .r dd{color:var(--no)}
+details{border-top:1px solid var(--rule);padding:var(--s3) 0;max-width:72ch}
+details:last-of-type{border-bottom:1px solid var(--rule)}
+summary{cursor:pointer;font-weight:600;min-height:40px;display:flex;align-items:center;gap:var(--s2)}
+summary::marker,summary::-webkit-details-marker{display:none;content:""}
+summary::before{content:"+";font:500 18px/1 var(--mono);width:16px;color:var(--token-ink)}
+details[open] summary::before{content:"\2212"}
+details>*:not(summary){margin-left:24px}
+details p:last-child{margin-bottom:var(--s2)}
+.after{margin-top:var(--s6)}
+
+/* tuning */
+#tune{height:300px}
+.meter{margin-top:var(--s5)}
+.meter-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:var(--s1) var(--s3);font-size:15px}
+.meter-head b{font:600 15px/1.4 var(--mono)}
+.bar{height:14px;border-radius:3px;background:var(--no);margin-top:var(--s2);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--ok);border-right:2px solid var(--surface)}
+.bar-key{font-size:13px;color:var(--ink-3);margin-top:var(--s2)}
+.note{border-left:4px solid var(--token);background:var(--token-tint);padding:var(--s4) var(--s5);border-radius:0 var(--radius) var(--radius) 0;margin-top:var(--s6);max-width:72ch}
+.note p{margin:0;font-size:16px}
+.note b{font-weight:600}
+
+/* code notes + table */
+dl.notes{margin:0;display:grid;gap:var(--s5)}
+dl.notes dt{font-weight:600}
+dl.notes dd{margin:var(--s1) 0 0;color:var(--ink-2);font-size:16px}
+.tablewrap{overflow-x:auto;margin:var(--s3) 0}
+table{border-collapse:collapse;font-size:15px;line-height:1.45;min-width:520px}
+th,td{text-align:left;vertical-align:top;padding:var(--s2) var(--s4) var(--s2) 0;border-bottom:1px solid var(--rule)}
+th{font-weight:600}
+tbody tr:last-child td{border-bottom:0}
+tr.here td{background:var(--token-tint)}
+tr.here td:first-child{font-weight:600}
+
+/* quiz */
+.quiz{max-width:760px;margin-inline:auto}
+.q{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);padding:var(--s5);margin-bottom:var(--s4)}
+.q h3{margin-bottom:var(--s4);font-size:1.05rem;line-height:1.45}
+.q h3 span{font-family:var(--mono);color:var(--token-ink);margin-right:var(--s2)}
+.opts{display:grid;gap:var(--s2)}
+.opts button{width:100%;text-align:left;font-weight:500;line-height:1.35;padding:var(--s3) var(--s4);border-color:var(--rule);display:flex;gap:var(--s3);align-items:center}
+.opts button:hover:not(:disabled){border-color:var(--ink);background:var(--paper)}
+.opts button:disabled{cursor:default;color:var(--ink-2)}
+.opts button .mark{font:600 18px/1 var(--sans);width:16px;flex:none}
+.opts button.right{border-color:var(--ok);background:var(--ok-tint);color:var(--ink)}
+.opts button.right .mark{color:var(--ok)}
+.opts button.wrong{border-color:var(--no);background:var(--no-tint);color:var(--ink)}
+.opts button.wrong .mark{color:var(--no)}
+.fb{margin:var(--s4) 0 0;font-size:15px;line-height:1.5}
+.fb b{font-weight:600} .fb.good b{color:var(--ok)} .fb.bad b{color:var(--no)}
+.tally{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:var(--s3);margin-top:var(--s5)}
+.tally p{margin:0;font:600 16px/1.3 var(--mono)}
+
+footer{padding-block:var(--s7);font-size:15px;color:var(--ink-2)}
+footer h2{font:600 13px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-bottom:var(--s4)}
+footer ul{margin:0 0 var(--s5);padding-left:1.1em;max-width:80ch}
+footer li{margin-bottom:var(--s2)}
+
+@media (max-width:900px){
+  .cols,.cols.lean,.cols.tune{grid-template-columns:minmax(0,1fr);gap:var(--s6)}
+  .sim-panels{grid-template-columns:minmax(0,1fr)}
+  .sim-panels>div+div{border-left:0;border-top:1px solid var(--rule)}
+  .sim-controls,.sim-foot{grid-template-columns:minmax(0,1fr)}
+  section{padding-block:var(--s7)}
+}
+@media (max-width:560px){
+  body{font-size:16px}
+  .top .wrap{gap:var(--s2)}
+  .brand span{display:none}
+  .top nav{gap:2px}
+  .top nav a{font-size:13px;padding:13px 6px}
+  table{min-width:0;font-size:14px}
+  th,td{padding-right:var(--s3)}
+  .card-body,.sim-controls,.sim-panels>div,.sim-foot{padding:var(--s4)}
+  .card-head{padding:var(--s3) var(--s4)}
+  .readouts{gap:var(--s4);justify-content:space-between}
+  .readouts div{min-width:0}
+  .readouts dd{font-size:1.3rem}
+  .hand{gap:var(--s4)}
+  #flow,#history{height:320px}
+  pre{font-size:12.5px;padding:var(--s3) var(--s4)}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="Token bucket, back to top"><i></i><span>Token bucket</span></a>
+    <nav aria-label="Sections">
+      <a href="#problem">Problem</a>
+      <a href="#rule">Rule</a>
+      <a href="#simulation">Simulation</a>
+      <a href="#tuning">Tuning</a>
+      <a href="#code">Code</a>
+      <a href="#quiz">Quiz</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+<div class="hero">
+  <div class="wrap cols lean">
+    <div>
+      <div class="eyebrow">Rate limiting primer</div>
+      <h1>How a token bucket rate limiter works</h1>
+      <p class="lede">Most public APIs cap how fast a client may call them. The token bucket is one of the most widely used ways to enforce that cap. It lets short bursts through, holds the long-run rate steady, and fits in under twenty lines of code.</p>
+      <p class="lede">This page follows one bucket throughout: it holds 10 tokens and refills at 2 per second.</p>
+      <p class="meta">About 8 minutes &middot; three demos &middot; a short quiz</p>
+    </div>
+    <svg class="diagram" viewBox="-16 -16 382 342" role="img" aria-label="Diagram of a bucket holding 7 of its 10 tokens. Two tokens are added every second, at most 10 are kept, and each request takes one.">
+      <g fill="none" stroke="#16202b" stroke-width="2" stroke-linecap="round">
+        <path d="M62 80V250Q62 272 84 272H136Q158 272 158 250V80"/>
+        <path d="M110 4V56M110 274V300"/>
+      </g>
+      <path d="M103 54h14l-7 12zM103 298h14l-7 12z" fill="#16202b"/>
+      <g stroke="#8793a0" stroke-width="1.5" stroke-dasharray="3 3" fill="none">
+        <circle cx="128" cy="142" r="15"/><circle cx="92" cy="106" r="15"/><circle cx="128" cy="106" r="15"/>
+      </g>
+      <g fill="#e6a817" stroke="#9a6b00" stroke-width="2">
+        <circle cx="92" cy="250" r="15"/><circle cx="128" cy="250" r="15"/>
+        <circle cx="92" cy="214" r="15"/><circle cx="128" cy="214" r="15"/>
+        <circle cx="92" cy="178" r="15"/><circle cx="128" cy="178" r="15"/>
+        <circle cx="92" cy="142" r="15"/>
+      </g>
+      <g stroke="#56626f" stroke-width="1" stroke-dasharray="2 3">
+        <path d="M120 26H178M160 134H178M120 288H178"/>
+      </g>
+      <text class="t" x="186" y="24">Refill</text>
+      <text x="186" y="44">2 tokens every second</text>
+      <text class="t" x="186" y="132">Capacity</text>
+      <text x="186" y="152">10 tokens at most</text>
+      <text x="186" y="170">extras are discarded</text>
+      <text class="t" x="186" y="286">Cost</text>
+      <text x="186" y="306">1 token per request</text>
+    </svg>
+  </div>
+</div>
+
+<section id="problem" class="white">
+  <div class="wrap cols lean">
+    <div>
+      <div class="eyebrow">01 &middot; The problem</div>
+      <h2>A server can only do so much per second</h2>
+      <p>A service has a fixed amount of CPU, memory and database connections. One client stuck in a retry loop, or one script fetching every page it can find, can use all of it and slow the service down for everyone else.</p>
+      <p>A rate limiter sits in front of the service and decides, for each incoming request, whether to let it through. Requests over the limit are turned away immediately, usually with HTTP status <code>429 Too Many Requests</code>, so the server spends almost nothing on them.</p>
+      <p>The difficulty is writing a rule that is strict about sustained load and still tolerant of normal behaviour. Real clients are bursty. A page load fires eight calls at once, then nothing for a minute. A rule that allowed exactly one request every half second would reject most of that page load, even though the client averages far less than the limit.</p>
+    </div>
+    <figure>
+      <pre><span class="k">HTTP/1.1 429</span> Too Many Requests
+Retry-After: 1
+Content-Type: application/json
+
+{<span class="s">"error"</span>: <span class="s">"rate_limited"</span>}</pre>
+      <figcaption>What a rejected request gets back. <code>Retry-After</code> is optional and tells the client how many seconds to wait before trying again.</figcaption>
+      <svg class="strip" viewBox="-4 -12 440 172" role="img" aria-label="Timeline: a client sends 8 calls at the same instant. A rule that allows one request per half second serves 1 and rejects 7, then 7 of its slots pass unused.">
+        <text class="t" x="0" y="10">Client sends 8 calls at once</text>
+        <rect x="8" y="22" width="3" height="26" fill="#0b7566"/>
+        <g fill="#b8302a"><rect x="13" y="22" width="3" height="26"/><rect x="18" y="22" width="3" height="26"/><rect x="23" y="22" width="3" height="26"/><rect x="28" y="22" width="3" height="26"/><rect x="33" y="22" width="3" height="26"/><rect x="38" y="22" width="3" height="26"/><rect x="43" y="22" width="3" height="26"/></g>
+        <text x="58" y="40"><tspan fill="#0b7566" font-weight="600">1 served</tspan>, <tspan fill="#b8302a" font-weight="600">7 rejected</tspan></text>
+        <text class="t" x="0" y="84">Rule: one per half second</text>
+        <text x="410" y="84" text-anchor="end">7 slots unused</text>
+        <rect x="8" y="96" width="3" height="26" fill="#0b7566"/>
+        <g fill="none" stroke="#8793a0" stroke-width="1.5" stroke-dasharray="3 2"><rect x="58" y="96" width="3" height="26"/><rect x="108" y="96" width="3" height="26"/><rect x="158" y="96" width="3" height="26"/><rect x="208" y="96" width="3" height="26"/><rect x="258" y="96" width="3" height="26"/><rect x="308" y="96" width="3" height="26"/><rect x="358" y="96" width="3" height="26"/><rect x="408" y="96" width="3" height="26"/></g>
+        <path d="M8 130.500H411" stroke="#d0d7de"/>
+        <text class="ax" x="8" y="148">0 s</text><text class="ax" x="209" y="148" text-anchor="middle">2 s</text><text class="ax" x="411" y="148" text-anchor="end">4 s</text>
+      </svg>
+      <figcaption>A strict spacing rule wastes capacity on a bursty client: the page load loses seven calls, and the allowance for the next four seconds is thrown away.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="rule">
+  <div class="wrap cols">
+    <div>
+      <div class="eyebrow">02 &middot; The rule</div>
+      <h2>The whole algorithm is three rules</h2>
+      <p>The limiter keeps a bucket of tokens for each client. A token is permission to make one request.</p>
+      <ol class="rules">
+        <li><span><b>The bucket holds at most 10 tokens.</b> It starts full.</span></li>
+        <li><span><b>Tokens are added at 2 per second,</b> one every half second. A token that arrives at a full bucket is discarded.</span></li>
+        <li><span><b>Each request takes one token</b> and is served. If there is no token to take, the request is rejected.</span></li>
+      </ol>
+      <p>Saved tokens are what make bursts possible. A client that has been quiet has a full bucket and can spend all 10 at once. A client that never stops gets only what the refill provides.</p>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>Run the rules by hand</h3><span>time moves only when you press Wait</span></div>
+      <div class="card-body hand">
+        <div class="bucket" id="handBucket" aria-hidden="true"></div>
+        <div>
+          <div class="count" id="handCount" aria-live="polite"></div>
+          <div class="btns">
+            <button class="primary" id="handSend">Send a request</button>
+            <button id="handWait">Wait 1 second</button>
+            <button class="quiet" id="handReset">Reset</button>
+          </div>
+          <ul class="log" id="handLog" aria-label="What just happened"></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="simulation" class="tint">
+  <div class="wrap">
+    <div class="eyebrow">03 &middot; Live simulation</div>
+    <h2>Change the request rate and watch the bucket</h2>
+    <p>Requests arrive evenly spaced at the rate you set. Each one that reaches the bucket takes a token or is turned away. Start below 2 requests per second, then cross it.</p>
+
+    <div class="card" style="margin-top:var(--s5)">
+      <div class="sim-controls">
+        <div class="field">
+          <label for="rate">Request rate <output id="rateOut" for="rate"></output></label>
+          <input type="range" id="rate" min="0" max="12" step="0.1" value="1">
+          <div class="presets" id="presets"><span>Jump to</span>
+            <button data-r="1">1/s</button><button data-r="2">2/s</button><button data-r="4">4/s</button><button data-r="8">8/s</button>
+          </div>
+        </div>
+        <div class="btns">
+          <button class="primary" id="burst">Send a burst of 15</button>
+          <button id="pause">Pause</button>
+          <button class="quiet" id="simReset">Reset</button>
+        </div>
+      </div>
+      <div class="sim-panels">
+        <div>
+          <div class="panel-label">Right now</div>
+          <canvas id="flow" role="img" aria-label="Animation: request dots travel to a bucket of 10 tokens. A request that finds a token continues as accepted; one that finds none drops away as rejected."></canvas>
+          <ul class="legend">
+            <li><i class="sw-req"></i>request</li><li><i class="sw-ok"></i>accepted</li><li><i class="sw-no"></i>rejected</li>
+          </ul>
+        </div>
+        <div>
+          <div class="panel-label">Last 20 seconds</div>
+          <canvas id="history" role="img" aria-label="Chart of the token level over the last 20 seconds, with a mark for every accepted and rejected request."></canvas>
+          <ul class="legend">
+            <li><i class="sw-line"></i>tokens in the bucket</li>
+            <li><i class="sw-tick" style="background:var(--ok)"></i>accepted request</li>
+            <li><i class="sw-tick" style="background:var(--no)"></i>rejected request</li>
+          </ul>
+        </div>
+      </div>
+      <div class="sim-foot">
+        <p class="verdict" id="verdict" aria-live="polite"></p>
+        <div>
+        <dl class="readouts">
+          <div><dt>Tokens</dt><dd id="rTok"></dd></div>
+          <div class="a"><dt>Accepted</dt><dd id="rOk"></dd></div>
+          <div class="r"><dt>Rejected</dt><dd id="rNo"></dd></div>
+        </dl>
+        <p class="readnote">Accepted and rejected are per second, averaged over the last 5 seconds.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="after">
+      <p>The partly filled disc at the top of the stack is the next token on its way: half a second from nothing to usable. Whatever rate you pick above 2, the accepted count settles at 2 per second once the saved tokens are gone. A larger bucket would only postpone that moment.</p>
+      <details>
+        <summary>The arithmetic behind the numbers</summary>
+        <p>At <i>r</i> requests per second, with <i>r</i> above 2, the bucket gains 2 tokens and loses <i>r</i> each second. A full bucket therefore lasts about 10 &divide; (<i>r</i> &minus; 2) seconds: 5 seconds at 4 per second, under 2 seconds at 8.</p>
+        <p>An empty bucket refills in 10 &divide; 2 = 5 seconds if no requests arrive.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section id="tuning">
+  <div class="wrap">
+    <div class="eyebrow">04 &middot; Tuning</div>
+    <h2>Capacity sets the burst, refill sets the pace</h2>
+    <div class="cols tune">
+      <div>
+        <p>The same 20 seconds of traffic runs against whatever bucket you configure here: a quiet stretch, 15 requests at once, eight seconds at 5 requests per second, then quiet again.</p>
+        <div class="field" style="margin-top:var(--s5)">
+          <label for="cap">Capacity <output id="capOut" for="cap"></output></label>
+          <input type="range" id="cap" min="2" max="20" step="1" value="10">
+        </div>
+        <div class="field">
+          <label for="ref">Refill rate <output id="refOut" for="ref"></output></label>
+          <input type="range" id="ref" min="0.5" max="8" step="0.1" value="2">
+        </div>
+        <button class="quiet" id="tuneReset" style="margin-left:calc(-1 * var(--s2))">Back to 10 tokens, 2 per second</button>
+        <div class="meter">
+          <div class="meter-head"><span>The burst of 15</span><b id="mBurst"></b></div>
+          <div class="bar"><i id="mBurstBar"></i></div>
+        </div>
+        <div class="meter">
+          <div class="meter-head"><span>Eight seconds at 5 per second</span><b id="mSteady"></b></div>
+          <div class="bar"><i id="mSteadyBar"></i></div>
+          <div class="bar-key">Teal is accepted, red is rejected.</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>One traffic trace, your bucket</h3><span>illustrative traffic</span></div>
+        <div class="card-body">
+          <canvas id="tune" role="img" aria-label="Chart of the token level over a fixed 20 second traffic trace for the capacity and refill rate chosen with the sliders."></canvas>
+          <ul class="legend">
+            <li><i class="sw-line"></i>tokens in the bucket</li>
+            <li><i class="sw-dash"></i>capacity</li>
+            <li><i class="sw-tick" style="background:var(--ok)"></i>accepted</li>
+            <li><i class="sw-tick" style="background:var(--no)"></i>rejected</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <p style="margin-top:var(--s6)" id="tuneProse">Raise capacity and more of the burst gets through, while the sustained stretch barely changes until the bucket is bigger than the burst itself. Raise the refill rate and the sustained stretch follows it. In practice the two are chosen separately: capacity from the largest burst a well-behaved client makes, refill rate from the load the service can carry for that client indefinitely.</p>
+    <div class="note">
+      <p><b>A common misreading.</b> &ldquo;2 per second&rdquo; sounds like a ceiling on every individual second. With this bucket a client can get 12 requests through in one second: the 10 saved tokens plus the 2 that arrive during it. Over any stretch of <i>T</i> seconds, the most that can pass is capacity + refill rate &times; <i>T</i>.</p>
+    </div>
+  </div>
+</section>
+
+<section id="code" class="white">
+  <div class="wrap">
+    <div class="eyebrow">05 &middot; In code</div>
+    <h2>The implementation needs no timer</h2>
+    <p>Nothing adds tokens in the background. The bucket stores two values, the token count and the time it was last updated, and works out the refill it is owed whenever a request arrives.</p>
+    <div class="cols lean" style="margin-top:var(--s5)">
+      <pre><span class="k">import</span> time
+
+<span class="k">class</span> TokenBucket:
+    <span class="k">def</span> __init__(self, capacity=10, refill_rate=2.0):
+        self.capacity = capacity
+        self.refill_rate = refill_rate   <span class="c"># tokens per second</span>
+        self.tokens = capacity           <span class="c"># start full</span>
+        self.updated = time.monotonic()
+
+    <span class="k">def</span> allow(self):
+        now = time.monotonic()
+        elapsed = now - self.updated
+        earned = elapsed * self.refill_rate
+        self.tokens = min(self.capacity, self.tokens + earned)
+        self.updated = now
+        <span class="k">if</span> self.tokens &gt;= 1:
+            self.tokens -= 1
+            <span class="k">return</span> True
+        <span class="k">return</span> False</pre>
+      <dl class="notes">
+        <div><dt>Refill on demand</dt><dd><code>earned</code> is the number of tokens that accumulated since the last call. <code>min()</code> enforces the capacity, so a long idle period never yields more than 10.</dd></div>
+        <div><dt>Fractions are kept</dt><dd>A request 0.3 seconds after the bucket emptied finds 0.6 of a token and is rejected. The 0.6 stays, and a request 0.3 seconds later is accepted.</dd></div>
+        <div><dt>Two numbers per client</dt><dd>That is the entire state. The demos on this page run this same arithmetic in JavaScript.</dd></div>
+      </dl>
+    </div>
+    <div class="after">
+      <details>
+        <summary>One bucket per client, and where it lives</summary>
+        <p>A limiter keeps a separate bucket for each key it limits by: an API key, a user ID or an IP address. One client draining its bucket has no effect on another.</p>
+        <p>The class above is for a single process and is not thread-safe. With several servers behind a load balancer the buckets usually move to a shared store such as Redis, and the read, refill and decrement must run as one atomic step. Otherwise two servers can spend the same token.</p>
+      </details>
+      <details>
+        <summary>How it compares with other limiters</summary>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Algorithm</th><th>How it decides</th><th>Bursts</th></tr></thead>
+          <tbody id="cmp"></tbody>
+        </table></div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section id="quiz" class="tint">
+  <div class="wrap">
+    <div class="quiz">
+      <div class="eyebrow">06 &middot; Check yourself</div>
+      <h2>Four questions on the 10-token, 2-per-second bucket</h2>
+      <div id="quizBody"></div>
+      <div class="tally"><p id="tally" aria-live="polite"></p><button id="retry">Start over</button></div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <h2>Sources and notes</h2>
+    <ul>
+      <li><a href="https://en.wikipedia.org/wiki/Token_bucket">Token bucket</a>, Wikipedia. The algorithm, and how long a burst can run at full speed: capacity &divide; (request rate &minus; refill rate).</li>
+      <li><a href="https://www.rfc-editor.org/rfc/rfc6585#section-4">RFC 6585, section 4</a>. Defines status 429 Too Many Requests and the optional <code>Retry-After</code> header.</li>
+      <li><a href="https://stripe.com/blog/rate-limiters">Scaling your API with rate limiters</a>, Stripe engineering blog. A production account of token buckets kept in Redis.</li>
+    </ul>
+    <p>The traffic in the demos is synthetic and evenly spaced; real traffic is messier. The bucket arithmetic is the algorithm itself, running in your browser.</p>
+  </div>
+</footer>
+
+<script>
+/* ---------- the model: one bucket, used by every demo ---------- */
+const CAP = 10, RATE = 2, EPS = 1e-9;
+function makeBucket(cap, rate) { return { cap, rate, tokens: cap, at: 0 }; }
+function refill(b, t) { b.tokens = Math.min(b.cap, b.tokens + (t - b.at) * b.rate); b.at = t; }
+function take(b, t) {
+  refill(b, t);
+  if (b.tokens >= 1 - EPS) { b.tokens = Math.max(0, b.tokens - 1); return true; }
+  return false;
+}
+function pushRise(pts, b, t) {
+  const full = b.at + (b.cap - b.tokens) / b.rate;
+  if (full > b.at && full < t) pts.push({ t: full, v: b.cap });
+  pts.push({ t, v: Math.min(b.cap, b.tokens + (t - b.at) * b.rate) });
+}
+function runTrace(cap, rate, times, tEnd) {
+  const b = makeBucket(cap, rate), events = [], pts = [{ t: 0, v: cap }];
+  for (const t of times) {
+    pushRise(pts, b, t);
+    const ok = take(b, t);
+    pts.push({ t, v: b.tokens });
+    events.push({ t, ok });
+  }
+  pushRise(pts, b, tEnd);
+  return { events, pts };
+}
+
+/* ---------- shared drawing ---------- */
+const $ = id => document.getElementById(id);
+const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const C = { ink: cssVar("--ink"), ink3: cssVar("--ink-3"), rule: cssVar("--rule"), slot: cssVar("--slot"), band: cssVar("--paper"),
+  token: cssVar("--token"), edge: cssVar("--token-edge"), ok: cssVar("--ok"), no: cssVar("--no"), req: cssVar("--req") };
+const MONO = '"IBM Plex Mono", ui-monospace, Menlo, monospace';
+const fmt = (v, d = 1) => v.toFixed(d);
+const fmtLevel = v => (Math.floor((v + EPS) * 10) / 10).toFixed(1);
+
+function fit(cv) {
+  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+  const W = Math.round(w * dpr), H = Math.round(h * dpr);
+  if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+  const ctx = cv.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  return { ctx, w, h };
+}
+
+function drawChart(cv, o) {
+  const { ctx, w, h } = fit(cv);
+  const L = 30, R = 12, T = o.bands ? 30 : 10, B = 24, strip = 44;
+  const pw = w - L - R, ph = h - T - B - strip;
+  const X = t => L + (t - o.t0) / (o.t1 - o.t0) * pw, Y = v => T + ph - v / o.ymax * ph;
+  ctx.font = "500 11px " + MONO; ctx.textBaseline = "middle";
+  if (o.bands) {
+    const long = o.bands.every(b => ctx.measureText(b.label).width < X(b.t1) - X(b.t0) - 6);
+    o.bands.forEach((b, i) => {
+      const x0 = X(b.t0), bw = X(b.t1) - x0;
+      if (i % 2) { ctx.fillStyle = C.band; ctx.fillRect(x0, T, bw, ph + strip); }
+      ctx.fillStyle = C.ink3; ctx.textAlign = "center"; ctx.fillText(long ? b.label : b.short, x0 + bw / 2, 14);
+    });
+  }
+  ctx.lineWidth = 1; ctx.textAlign = "right";
+  o.yticks.forEach(v => {
+    ctx.strokeStyle = C.rule; ctx.beginPath(); ctx.moveTo(L, Y(v) + .5); ctx.lineTo(L + pw, Y(v) + .5); ctx.stroke();
+    ctx.fillStyle = C.ink3; ctx.fillText(v, L - 8, Y(v));
+  });
+  ctx.save(); ctx.beginPath(); ctx.rect(L, T - 3, pw, ph + 6); ctx.clip();
+  if (o.capLine) {
+    ctx.strokeStyle = C.ink3; ctx.setLineDash([5, 4]); ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(L, Y(o.cap)); ctx.lineTo(L + pw, Y(o.cap)); ctx.stroke(); ctx.setLineDash([]);
+  }
+  if (o.pts.length) {
+    ctx.beginPath();
+    o.pts.forEach((p, i) => i ? ctx.lineTo(X(p.t), Y(p.v)) : ctx.moveTo(X(p.t), Y(p.v)));
+    ctx.strokeStyle = C.edge; ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.stroke();
+    ctx.lineTo(X(o.pts[o.pts.length - 1].t), Y(0)); ctx.lineTo(X(o.pts[0].t), Y(0)); ctx.closePath();
+    ctx.globalAlpha = .22; ctx.fillStyle = C.token; ctx.fill(); ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+  const ya = T + ph + 10, yr = ya + 16;
+  for (const e of o.events) {
+    if (e.t < o.t0 || e.t > o.t1) continue;
+    ctx.fillStyle = e.ok ? C.ok : C.no;
+    ctx.fillRect(Math.round(X(e.t)) - 1, e.ok ? ya : yr, 2, 12);
+  }
+  ctx.fillStyle = C.ink3;
+  o.xlabels.forEach(l => { ctx.textAlign = l.align || "center"; ctx.fillText(l.text, X(l.t), h - 9); });
+}
+
+/* ---------- demo 1: by hand ---------- */
+const hand = { tokens: CAP, n: 0, log: [] };
+const handSlots = [];
+for (let k = 0; k < 10; k++) { const s = document.createElement("span"); $("handBucket").appendChild(s); handSlots.push(s); }
+function handRender() {
+  handSlots.forEach((s, k) => s.classList.toggle("on", (4 - Math.floor(k / 2)) * 2 + k % 2 < hand.tokens));
+  $("handCount").innerHTML = hand.tokens + " <small>of 10 tokens</small>";
+  $("handLog").innerHTML = hand.log.slice(0, 6).map(e => `<li class="${e.c}">${e.text}</li>`).join("");
+}
+const plural = n => n === 1 ? "1 token" : n + " tokens";
+$("handSend").onclick = () => {
+  hand.n++;
+  if (hand.tokens >= 1) { hand.tokens--; hand.log.unshift({ c: "ok", text: `Request ${hand.n}: accepted. ${plural(hand.tokens)} left.` }); }
+  else hand.log.unshift({ c: "no", text: `Request ${hand.n}: rejected. The bucket is empty.` });
+  handRender();
+};
+$("handWait").onclick = () => {
+  const add = Math.min(RATE, CAP - hand.tokens); hand.tokens += add;
+  const text = add === 2 ? "Waited 1 second: 2 tokens added."
+    : add === 1 ? "Waited 1 second: 1 token added, 1 discarded because the bucket is full."
+    : "Waited 1 second: the bucket was already full, so both new tokens were discarded.";
+  hand.log.unshift({ c: "add", text }); handRender();
+};
+$("handReset").onclick = () => { hand.tokens = CAP; hand.n = 0; hand.log = [{ c: "", text: "Full bucket. Send 11 requests in a row and see what the last one gets." }]; handRender(); };
+$("handReset").onclick();
+
+/* ---------- demo 2: live simulation ---------- */
+const TRAVEL = 1.2, WINDOW = 20;
+let sim;
+function simReset() {
+  sim = { t: 0, b: makeBucket(CAP, RATE), rate: +$("rate").value, lastSpawn: -Infinity,
+    flying: [], events: [], pts: [{ t: 0, v: CAP }], ok: 0, no: 0, lastDecision: null, burst: null,
+    running: sim ? sim.running : !matchMedia("(prefers-reduced-motion: reduce)").matches };
+}
+function advance(dt) {
+  const t1 = sim.t + dt;
+  if (sim.rate > 0) {
+    let next = Math.max(sim.lastSpawn + 1 / sim.rate, sim.t);
+    while (next <= t1) { sim.flying.push({ spawn: next, arrive: next + TRAVEL, ok: null }); sim.lastSpawn = next; next += 1 / sim.rate; }
+  }
+  sim.flying.sort((a, b) => a.arrive - b.arrive);
+  for (const f of sim.flying) {
+    if (f.ok !== null || f.arrive > t1) continue;
+    pushRise(sim.pts, sim.b, f.arrive);
+    f.ok = take(sim.b, f.arrive);
+    sim.pts.push({ t: f.arrive, v: sim.b.tokens });
+    sim.events.push({ t: f.arrive, ok: f.ok });
+    f.ok ? sim.ok++ : sim.no++;
+    sim.lastDecision = { t: f.arrive, ok: f.ok };
+    if (f.burst && f.burst === sim.burst) { f.ok ? f.burst.ok++ : f.burst.no++; if (f.burst.ok + f.burst.no === 15) simVerdict(); }
+  }
+  pushRise(sim.pts, sim.b, t1); refill(sim.b, t1);
+  sim.t = t1;
+  const cut = t1 - WINDOW - 1;
+  sim.flying = sim.flying.filter(f => f.arrive + (f.ok === false ? 0.8 : 6) > t1);
+  while (sim.events.length && sim.events[0].t < cut) sim.events.shift();
+  while (sim.pts.length > 2 && sim.pts[1].t < cut) sim.pts.shift();
+}
+
+function drawFlow() {
+  const cv = $("flow"), { ctx, w, h } = fit(cv);
+  const small = w < 420, r = small ? 11 : 13, gap = 6, pad = 10, dot = small ? 4 : 5;
+  const gx = Math.round(w * (small ? 0.42 : 0.45)), yL = h - 92;
+  const bw = 4 * r + gap + 2 * pad, bh = 10 * r + 4 * gap + 2 * pad;
+  const bBot = yL - 30, bTop = bBot - bh, bL = gx - bw / 2, t = sim.t;
+  ctx.lineCap = "round"; ctx.textBaseline = "middle";
+  // lane
+  ctx.strokeStyle = C.rule; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0, yL); ctx.lineTo(w, yL); ctx.stroke();
+  ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(gx, yL); ctx.lineTo(gx + 34, yL + 60); ctx.stroke(); ctx.setLineDash([]);
+  // bucket
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(bL, bTop); ctx.lineTo(bL, bBot - 14); ctx.quadraticCurveTo(bL, bBot, bL + 14, bBot);
+  ctx.lineTo(bL + bw - 14, bBot); ctx.quadraticCurveTo(bL + bw, bBot, bL + bw, bBot - 14); ctx.lineTo(bL + bw, bTop); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(gx, bBot); ctx.lineTo(gx, yL - 12); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(gx, 8); ctx.lineTo(gx, bTop - 12); ctx.stroke();
+  ctx.fillStyle = C.ink; ctx.beginPath(); ctx.moveTo(gx - 6, bTop - 14); ctx.lineTo(gx + 6, bTop - 14); ctx.lineTo(gx, bTop - 4); ctx.fill();
+  // tokens
+  const level = Math.min(sim.b.cap, sim.b.tokens);
+  for (let i = 0; i < 10; i++) {
+    const cx = gx + (i % 2 ? 1 : -1) * (r + gap / 2), cy = bBot - pad - r - Math.floor(i / 2) * (2 * r + gap);
+    const f = Math.max(0, Math.min(1, level - i));
+    if (f >= 1 - EPS) {
+      ctx.beginPath(); ctx.arc(cx, cy, r - 1, 0, 7); ctx.fillStyle = C.token; ctx.fill();
+      ctx.strokeStyle = C.edge; ctx.lineWidth = 2; ctx.stroke();
+    } else {
+      if (f > 0) {
+        ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, r - 1, 0, 7); ctx.clip();
+        ctx.globalAlpha = .5; ctx.fillStyle = C.token; ctx.fillRect(cx - r, cy + r - 1 - f * 2 * (r - 1), 2 * r, 2 * r); ctx.restore();
+      }
+      ctx.beginPath(); ctx.arc(cx, cy, r - 1, 0, 7); ctx.strokeStyle = C.slot; ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 3]); ctx.stroke(); ctx.setLineDash([]);
+    }
+  }
+  // gate
+  const d = sim.lastDecision, hot = d && t - d.t < 0.25;
+  ctx.beginPath(); ctx.arc(gx, yL, 10, 0, 7); ctx.fillStyle = "#fff"; ctx.fill();
+  ctx.strokeStyle = hot ? (d.ok ? C.ok : C.no) : C.ink; ctx.lineWidth = hot ? 3 : 2; ctx.stroke();
+  // requests
+  const speed = (gx + 8) / TRAVEL;
+  for (const f of sim.flying) {
+    if (t < f.spawn) continue;
+    let x, y = yL, a = 1, col = C.req;
+    if (f.ok === null) x = -8 + (t - f.spawn) * speed;
+    else if (f.ok) { x = gx + (t - f.arrive) * speed; col = C.ok; if (x > w + 8) continue; }
+    else { const p = Math.min(1, (t - f.arrive) / 0.7); x = gx + 34 * p; y = yL + 60 * p; a = 1 - Math.max(0, (p - .6) / .4); col = C.no; }
+    ctx.globalAlpha = a; ctx.beginPath(); ctx.arc(x, y, dot, 0, 7); ctx.fillStyle = col; ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  // labels
+  ctx.font = "500 12px " + MONO; ctx.fillStyle = C.ink3;
+  ctx.textAlign = "right"; ctx.fillText("+2 tokens / s", gx - 14, 22);
+  ctx.textAlign = "left"; ctx.fillText("requests", 10, yL + 24);
+  ctx.fillText("of 10 tokens", bL + bw + 16, bTop + 58);
+  ctx.fillStyle = C.no; ctx.fillText("rejected · 429", gx + 50, yL + 62);
+  ctx.fillStyle = C.ok; ctx.textAlign = "right"; ctx.fillText("accepted", w - 10, yL - 18);
+  ctx.fillStyle = C.ink; ctx.textAlign = "left"; ctx.font = "600 28px " + MONO;
+  ctx.fillText(fmtLevel(level), bL + bw + 16, bTop + 30);
+}
+function drawHistory() {
+  const t1 = Math.max(sim.t, WINDOW), t0 = t1 - WINDOW;
+  drawChart($("history"), { t0, t1, ymax: 10, yticks: [0, 5, 10], pts: sim.pts, events: sim.events,
+    xlabels: sim.t >= WINDOW
+      ? [{ t: t0, text: "20 s ago", align: "left" }, { t: t0 + 10, text: "10 s ago" }, { t: t1, text: "now", align: "right" }]
+      : [{ t: 0, text: "start", align: "left" }, { t: 10, text: "10 s" }, { t: 20, text: "20 s", align: "right" }] });
+}
+function simReadouts() {
+  const span = Math.max(1, Math.min(5, sim.t)), from = sim.t - span;
+  let ok = 0, no = 0;
+  for (const e of sim.events) if (e.t > from) e.ok ? ok++ : no++;
+  $("rTok").innerHTML = fmtLevel(sim.b.tokens) + " <small>/ 10</small>";
+  $("rOk").innerHTML = fmt(ok / span) + " <small>/s</small>";
+  $("rNo").innerHTML = fmt(no / span) + " <small>/s</small>";
+}
+function simVerdict() {
+  const r = sim.rate, n = v => fmt(v).replace(/\.0$/, "");
+  $("rateOut").innerHTML = fmt(r) + " <small>req/s</small>";
+  document.querySelectorAll("#presets button").forEach(b => b.setAttribute("aria-pressed", +b.dataset.r === r));
+  $("verdict").innerHTML =
+    r === 0 ? "<b>No requests.</b> The bucket fills to 10 and stays there."
+    : r < RATE ? `<b>${n(r)} per second is below the refill rate of 2.</b> Every request finds a token, and the bucket stays full or climbs back to full.`
+    : r === RATE ? "<b>Exactly the refill rate.</b> Each request takes the token that arrived since the last one, so the level holds wherever it is."
+    : `<b>${n(r)} per second is above the refill rate.</b> The bucket loses ${n(r - RATE)} tokens each second, so a full one lasts about ${n(CAP / (r - RATE))} seconds. After that, 2 requests per second are accepted and ${n(r - RATE)} are rejected.`;
+  const u = sim.burst;
+  if (u && u.ok + u.no === 15) $("verdict").innerHTML += `<span><b>Your burst of 15:</b> ${u.ok} accepted, ${u.no} rejected.</span>`;
+}
+function setRate(r) { sim.rate = r; $("rate").value = r; simVerdict(); }
+$("rate").addEventListener("input", e => setRate(+e.target.value));
+$("presets").addEventListener("click", e => { if (e.target.dataset.r) setRate(+e.target.dataset.r); });
+$("burst").onclick = () => {
+  sim.burst = { ok: 0, no: 0 };
+  for (let i = 0; i < 15; i++) sim.flying.push({ spawn: sim.t + i * 0.03, arrive: sim.t + i * 0.03 + TRAVEL, ok: null, burst: sim.burst });
+  simVerdict();
+};
+$("pause").onclick = () => { sim.running = !sim.running; $("pause").textContent = sim.running ? "Pause" : "Resume"; };
+$("simReset").onclick = () => { simReset(); simVerdict(); simReadouts(); };
+
+let lastFrame = null, lastRead = 0;
+function frame(ts) {
+  if (lastFrame !== null && sim.running) advance(Math.min(0.1, (ts - lastFrame) / 1000));
+  lastFrame = ts;
+  drawFlow(); drawHistory();
+  if (ts - lastRead > 100) { simReadouts(); lastRead = ts; }
+  requestAnimationFrame(frame);
+}
+
+/* ---------- demo 3: tuning ---------- */
+const TRACE = { times: [], burst: [], steady: [] };
+[0.5, 1.5, 2.5].forEach(t => TRACE.times.push(t));
+for (let i = 0; i < 15; i++) { TRACE.burst.push(TRACE.times.length); TRACE.times.push(3 + i * 0.01); }
+for (let i = 0; i < 40; i++) { TRACE.steady.push(TRACE.times.length); TRACE.times.push(6 + i * 0.2); }
+for (let t = 14.5; t < 20; t++) TRACE.times.push(t);
+const BANDS = [
+  { t0: 0, t1: 3, label: "1 req/s", short: "1/s" }, { t0: 3, t1: 6, label: "burst of 15", short: "burst" },
+  { t0: 6, t1: 14, label: "5 req/s", short: "5/s" }, { t0: 14, t1: 20, label: "1 req/s", short: "1/s" }];
+function tuneRender() {
+  const cap = +$("cap").value, rate = +$("ref").value;
+  $("capOut").innerHTML = cap + " <small>tokens</small>";
+  $("refOut").innerHTML = fmt(rate) + " <small>per second</small>";
+  const res = runTrace(cap, rate, TRACE.times, 20);
+  const count = idx => idx.filter(i => res.events[i].ok).length;
+  const nb = count(TRACE.burst), ns = count(TRACE.steady);
+  $("mBurst").textContent = `${nb} of 15 accepted`; $("mBurstBar").style.width = nb / 15 * 100 + "%";
+  $("mSteady").textContent = `${ns} of 40 accepted`; $("mSteadyBar").style.width = ns / 40 * 100 + "%";
+  drawChart($("tune"), { t0: 0, t1: 20, ymax: 20, yticks: [0, 5, 10, 15, 20], cap, capLine: true, pts: res.pts, events: res.events, bands: BANDS,
+    xlabels: [{ t: 0, text: "0 s", align: "left" }, { t: 5, text: "5 s" }, { t: 10, text: "10 s" }, { t: 15, text: "15 s" }, { t: 20, text: "20 s", align: "right" }] });
+}
+$("cap").addEventListener("input", tuneRender);
+$("ref").addEventListener("input", tuneRender);
+$("tuneReset").onclick = () => { $("cap").value = CAP; $("ref").value = RATE; tuneRender(); };
+
+/* ---------- comparison table ---------- */
+const CMP = [
+  { name: "Token bucket", how: "Spends saved tokens; refills at a fixed rate.", bursts: "Pass at once, up to the capacity.", here: true },
+  { name: "Leaky bucket", how: "Queues requests and releases them at a fixed rate.", bursts: "Wait in the queue; dropped when it is full." },
+  { name: "Fixed window", how: "Counts requests in each clock window, such as each minute.", bursts: "Up to twice the limit can pass across a window boundary." },
+  { name: "Sliding window", how: "Counts requests in the window ending now.", bursts: "No boundary effect; needs more state or an approximation." }];
+$("cmp").innerHTML = CMP.map(r => `<tr${r.here ? ' class="here"' : ""}><td>${r.name}</td><td>${r.how}</td><td>${r.bursts}</td></tr>`).join("");
+
+/* ---------- quiz ---------- */
+const QUIZ = [
+  { q: "The bucket is full. A client sends 15 requests at the same instant. How many are accepted?",
+    options: ["2", "10", "12", "15"], answer: 1,
+    why: "Each request takes one token and the bucket holds 10. No time passes, so nothing is refilled; the other 5 are rejected." },
+  { q: "A client sends a steady 5 requests per second for several minutes. Once the bucket has emptied, how many get through each second?",
+    options: ["None until the client stops", "2", "5", "10"], answer: 1,
+    why: "With no saved tokens left, a request can only take a token that has just arrived, and tokens arrive at 2 per second." },
+  { q: "The bucket is empty and the client stops sending. How long until it is full again?",
+    options: ["Half a second", "2 seconds", "5 seconds", "10 seconds"], answer: 2,
+    why: "It needs 10 tokens and gains 2 per second: 10 ÷ 2 = 5 seconds." },
+  { q: "You want to allow bigger bursts without raising the rate a client can sustain. What do you change?",
+    options: ["Raise the capacity", "Raise the refill rate", "Charge 2 tokens per request", "Shorten the Retry-After value"], answer: 0,
+    why: "Capacity is how many tokens can be saved up, which is the largest burst. The sustained rate is set by the refill rate alone." }];
+const picked = [];
+function quizRender() {
+  $("quizBody").innerHTML = QUIZ.map((item, i) => {
+    const done = picked[i] !== undefined, good = picked[i] === item.answer;
+    const opts = item.options.map((o, j) => {
+      const cls = !done ? "" : j === item.answer ? "right" : j === picked[i] ? "wrong" : "";
+      const mark = cls === "right" ? "✓" : cls === "wrong" ? "✗" : "";
+      return `<button data-q="${i}" data-o="${j}" class="${cls}"${done ? " disabled" : ""}><span class="mark">${mark}</span><span>${o}</span></button>`;
+    }).join("");
+    const fb = !done ? "" : `<p class="fb ${good ? "good" : "bad"}"><b>${good ? "✓ Correct." : "✗ Not quite."}</b> ${item.why}</p>`;
+    return `<div class="q"><h3><span>${i + 1}</span>${item.q}</h3><div class="opts">${opts}</div>${fb}</div>`;
+  }).join("");
+  const answered = picked.filter(p => p !== undefined).length, right = picked.filter((p, i) => p === QUIZ[i].answer).length;
+  $("tally").textContent = answered ? `${right} of ${answered} correct${answered < QUIZ.length ? `, ${QUIZ.length - answered} to go` : ""}` : "Pick an answer to begin.";
+  $("retry").hidden = !answered;
+}
+$("quizBody").addEventListener("click", e => {
+  const b = e.target.closest("button[data-q]"); if (!b || b.disabled) return;
+  picked[+b.dataset.q] = +b.dataset.o; quizRender();
+});
+$("retry").onclick = () => { picked.length = 0; quizRender(); };
+
+/* ---------- start ---------- */
+window.addEventListener("DOMContentLoaded", () => {
+  simReset(); simVerdict(); simReadouts(); quizRender(); tuneRender();
+  $("pause").textContent = sim.running ? "Pause" : "Resume";
+  requestAnimationFrame(frame);
+  new ResizeObserver(tuneRender).observe($("tune"));
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(tuneRender);
+});
+</script>
+</body>
+</html>
