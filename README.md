@@ -4,33 +4,33 @@
 
 Tools for learning a technical concept with AI, picked by one test: **each gives you something to manipulate, or tests what you know.**
 
-The list is short on purpose, and every entry says whether it was tried or only read about.
+The list is short on purpose.
 
 [The list](#the-list) · [Showcase](#showcase) · [Worked example](#worked-example-one-concept-three-ways) · [Workflows](#workflows) · [How entries are chosen](#how-entries-are-chosen)
 
 ## The list
 
-**tried** means it was used hands-on. **read** means its documentation and source files were read, and it was not run. Entries tagged `browser` need no install, account or API key.
+Entries tagged `browser` need no install, account or API key.
 
 ### Explore a working model
 
-- **[Transformer Explainer](https://github.com/poloclub/transformer-explainer)**: GPT-2 running in your browser. Type a sentence and watch attention and temperature change the next token. `browser` · read · [demo](https://poloclub.github.io/transformer-explainer/)
-- **[LLM Visualization](https://github.com/bbycroft/llm-viz)**: a small GPT in 3D, walked through one step at a time. `browser` · read · [demo](https://bbycroft.net/llm)
+- **[Transformer Explainer](https://github.com/poloclub/transformer-explainer)**: GPT-2 running in your browser. Type a sentence and watch attention and temperature change the next token. `browser` · [demo](https://poloclub.github.io/transformer-explainer/)
+- **[LLM Visualization](https://github.com/bbycroft/llm-viz)**: a small GPT in 3D, walked through one step at a time. `browser` · [demo](https://bbycroft.net/llm)
 
 ### Make your own lesson
 
-- **[Anatomy](https://github.com/wheresryan22/anatomy)**: a Claude Code skill that draws a concept as a machine you operate. A rate limiter becomes a pump, a tank and a press. `Claude Code` · read, live figures opened · [live collection](https://skills.wheresryan.sh/anatomy/collection)
-- **[HTML Explainer](https://github.com/ds-vibe/html-explainer)**: an agent skill that interviews you, then builds and reviews an interactive HTML lesson. `Claude Code` · tried · [gallery](https://ds-vibe.github.io/html-explainer/)
-- **[OpenMAIC](https://github.com/THU-MAIC/OpenMAIC)**: generates a classroom from a topic or document, with slides, graded quizzes and simulations. `self-hosted` · read
+- **[Anatomy](https://github.com/wheresryan22/anatomy)**: a Claude Code skill that draws a concept as a machine you operate. A rate limiter becomes a pump, a tank and a press. `Claude Code` · [live collection](https://skills.wheresryan.sh/anatomy/collection)
+- **[HTML Explainer](https://github.com/ds-vibe/html-explainer)**: an agent skill that interviews you, then builds and reviews an interactive HTML lesson. `Claude Code` · [gallery](https://ds-vibe.github.io/html-explainer/)
+- **[OpenMAIC](https://github.com/THU-MAIC/OpenMAIC)**: generates a classroom from a topic or document, with slides, graded quizzes and simulations. `self-hosted`
 
 ### Practise and get tested
 
-- **[DeepTutor](https://github.com/HKUDS/DeepTutor)**: generates and grades questions, and keeps a mastery path and learner memory between sessions. `self-hosted` · read
-- **[Agent Tutor Skill](https://github.com/Bhala-Srinivash/agent-tutor-skill)**: a tutoring protocol for Claude Code. Explain it back before moving on, quizzes without hints. `Claude Code` · read
+- **[DeepTutor](https://github.com/HKUDS/DeepTutor)**: generates and grades questions, and keeps a mastery path and learner memory between sessions. `self-hosted`
+- **[Agent Tutor Skill](https://github.com/Bhala-Srinivash/agent-tutor-skill)**: a tutoring protocol for Claude Code. Explain it back before moving on, quizzes without hints. `Claude Code`
 
 ### Follow a path
 
-- **[AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch)**: about 500 build-it-yourself lessons from math foundations to agents, most with a quiz. `browser` · read · [website](https://aiengineeringfromscratch.com)
+- **[AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch)**: about 500 build-it-yourself lessons from math foundations to agents, most with a quiz. `browser` · [website](https://aiengineeringfromscratch.com)
 
 ## Showcase
 
