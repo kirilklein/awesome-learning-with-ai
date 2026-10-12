@@ -21,7 +21,7 @@ Tools that only explain, summarize, organize sources or navigate code are out of
 6. Setup, and whether model access costs extra.
 7. Whether you ran it yourself or only read its documentation.
 
-Add the entry to the table in `README.md` and mark the last column honestly.
+Add the entry to the list in `README.md` as one line under the heading that fits its goal: linked name, one sentence and a setup tag.
 
 ## Attribution
 
