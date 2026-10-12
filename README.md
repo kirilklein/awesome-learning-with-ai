@@ -36,7 +36,7 @@ The list is short on purpose, and every entry says whether it was tried or only 
 
 ### Anatomy: an idea drawn as a machine you operate
 
-<a href="https://skills.wheresryan.sh/anatomy/collection"><img src="assets/anatomy-ripple-tank.webp" alt="Anatomy's ripple tank figure" width="420"></a>
+<a href="https://skills.wheresryan.sh/anatomy/collection"><img src="assets/showcase/anatomy-raptor-engine.gif" alt="Anatomy's Raptor engine figure coming apart into its assemblies and closing again" width="520"></a>
 
 **[Repository](https://github.com/wheresryan22/anatomy)** · **[Live collection](https://skills.wheresryan.sh/anatomy/collection)** · Agent skill for Claude Code
 
@@ -116,4 +116,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Curated by [Kiril Klein](https://github.com/kirilklein). Text and layout: [MIT](LICENSE).
 
-Cover and Anatomy illustration: Ryan / [Anatomy](https://github.com/wheresryan22/anatomy), MIT, reused with attribution. The other showcase images are screenshots of the projects' own pages. Linked projects keep their own authors and licenses. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Cover illustration: Ryan / [Anatomy](https://github.com/wheresryan22/anatomy), MIT, reused with attribution. The showcase images are captures of the projects' own pages. Linked projects keep their own authors and licenses. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
