@@ -1,6 +1,6 @@
 # Awesome Learning with AI
 
-![Learn with AI: explanations you can explore, concepts you can practise](assets/cover.png)
+<a href="#showcase"><img src="assets/hero.gif" alt="Three tools from the list, recorded live: Transformer Explainer expanding its attention matrix and moving the temperature, Anatomy's token bucket, temperature wheel and afterburner being operated, and an AI Engineering from Scratch lesson being quizzed and explored" width="100%"></a>
 
 Tools for learning a technical concept with AI, picked by one test: **each gives you something to manipulate, or tests what you know.**
 
@@ -34,9 +34,25 @@ Entries tagged `browser` need no install, account or API key.
 
 ## Showcase
 
+### Transformer Explainer: watch a real model work
+
+<a href="https://poloclub.github.io/transformer-explainer/"><img src="assets/showcase/transformer-explainer.gif" alt="Transformer Explainer: the attention matrix hovered and expanded into dot product, scaling and softmax, attention heads stepped through, the probability formula opened and the temperature moved" width="800"></a>
+
+*In the recording: the attention matrix hovered, then expanded into dot product, scaling and mask, and softmax. Heads 1 to 3, the sampling formula for the top token, and the temperature moved down, then up, while the odds sharpen and flatten.*
+
+**[Live demo](https://poloclub.github.io/transformer-explainer/)** · **[Repository](https://github.com/poloclub/transformer-explainer)** · Interactive resource
+
+GPT-2 running in your browser. Type your own text, pick an attention head, step through the masked attention matrix, and move the temperature slider to see the next-token probabilities change. No assistant is involved. It is here because it sets the bar: this is what the tools that generate lessons are trying to produce.
+
+**Start with** a sentence of five or six words. [Understand attention](workflows/understand-attention.md) says what to look for.
+
+**Needs:** a browser. The examples work at once; your own text waits for a 600 MB model download.
+
 ### Anatomy: an idea drawn as a machine you operate
 
-<a href="https://skills.wheresryan.sh/anatomy/collection"><img src="assets/showcase/anatomy-raptor-engine.gif" alt="Anatomy's Raptor engine figure coming apart into its assemblies and closing again" width="520"></a>
+<a href="https://skills.wheresryan.sh/anatomy/collection"><img src="assets/showcase/anatomy.gif" alt="Three Anatomy figures being operated: a token bucket held down until its tank runs dry, a temperature roulette wheel heated, spun and cooled, and a jet engine throttled until the afterburner lights" width="520"></a>
+
+*In the recording: three figures from the live collection. A [token bucket](https://skills.wheresryan.sh/anatomy/collection/rate-limiter) pressed until the tank runs dry and presses are refused, a [temperature wheel](https://skills.wheresryan.sh/anatomy/collection/sampling) heated, spun and cooled to one pocket, and an [afterburner](https://skills.wheresryan.sh/anatomy/collection/afterburner) throttled until it lights.*
 
 **[Repository](https://github.com/wheresryan22/anatomy)** · **[Live collection](https://skills.wheresryan.sh/anatomy/collection)** · Agent skill for Claude Code
 
@@ -48,7 +64,9 @@ Anatomy has Claude explain an idea by inventing a physical object whose working 
 
 ### AI Engineering from Scratch: follow a path and build
 
-[![The self-attention lesson in AI Engineering from Scratch](assets/showcase/ai-engineering-from-scratch.png)](https://aiengineeringfromscratch.com/lesson?path=phases/07-transformers-deep-dive/02-self-attention-from-scratch)
+<a href="https://aiengineeringfromscratch.com/lesson?path=phases/07-transformers-deep-dive/02-self-attention-from-scratch"><img src="assets/showcase/ai-engineering-from-scratch.gif" alt="The self-attention lesson in AI Engineering from Scratch: two pre-lesson quiz answers marked, then the animated attention figure, then the softmax scaling figure collapsing to one token when scaling is switched off" width="520"></a>
+
+*In the recording: the [self-attention lesson](https://aiengineeringfromscratch.com/lesson?path=phases/07-transformers-deep-dive/02-self-attention-from-scratch). A wrong and a right answer in the pre-lesson check, the animated attention figure, then softmax without the √d_k divisor saturating to one token.*
 
 **[Repository](https://github.com/rohitg00/ai-engineering-from-scratch)** · **[Website](https://aiengineeringfromscratch.com)** · Curriculum with tutoring skills
 
@@ -57,18 +75,6 @@ Twenty phases, from math foundations to agents, with about 500 lessons. The self
 **Start with** one lesson, not the whole path. [Understand attention](workflows/understand-attention.md) uses two of them.
 
 **Needs:** a browser to read. Python to run the code. A coding agent for the tutoring skills.
-
-### Transformer Explainer: watch a real model work
-
-[![Transformer Explainer showing attention and next-token probabilities](assets/showcase/transformer-explainer.png)](https://poloclub.github.io/transformer-explainer/)
-
-**[Live demo](https://poloclub.github.io/transformer-explainer/)** · **[Repository](https://github.com/poloclub/transformer-explainer)** · Interactive resource
-
-GPT-2 running in your browser. Type your own text, pick an attention head, step through the masked attention matrix, and move the temperature slider to see the next-token probabilities change. No assistant is involved. It is here because it sets the bar: this is what the tools that generate lessons are trying to produce.
-
-**Start with** a sentence of five or six words. [Understand attention](workflows/understand-attention.md) says what to look for.
-
-**Needs:** a browser. The examples work at once; your own text waits for a 600 MB model download.
 
 ## Worked example: one concept, three ways
 
@@ -116,4 +122,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Curated by [Kiril Klein](https://github.com/kirilklein). Text and layout: [MIT](LICENSE).
 
-Cover illustration: Ryan / [Anatomy](https://github.com/wheresryan22/anatomy), MIT, reused with attribution. The showcase images are captures of the projects' own pages. Linked projects keep their own authors and licenses. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Cover image (`assets/cover.png`) illustration: Ryan / [Anatomy](https://github.com/wheresryan22/anatomy), MIT, reused with attribution. The hero and showcase GIFs are recordings of the projects' live pages, made with [scripts/record-showcase.cjs](scripts/record-showcase.cjs). Linked projects keep their own authors and licenses. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

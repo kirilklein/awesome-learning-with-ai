@@ -12,12 +12,13 @@ The screenshot is placed unchanged in a new cover layout. It shows Ryan's work; 
 
 The interactive version lives upstream: [examples/ripple-tank](https://github.com/wheresryan22/anatomy/tree/main/examples/ripple-tank).
 
-## Raptor engine recording
+## Collection recordings
 
-The README showcase shows a screen recording of another of Ryan's figures. It is a recording, not an unchanged copy: the page was opened in Chrome, the pointer was moved onto the figure and off again, and the frames were scaled to 640 px wide.
+The README hero and showcase show screen recordings of three of Ryan's figures from the live collection. They are recordings, not unchanged copies: [scripts/record-showcase.cjs](../../scripts/record-showcase.cjs) opened each page in Chromium, operated the figure with the pointer and keyboard, covered the page title and description, and cropped and scaled the frames. The three clips are cut together in this order.
 
-Recorded: 2026-10-12. License: MIT.
+Recorded: 2026-10-16. License: MIT.
 
-- Source page: [examples/raptor-engine/raptor-engine-light.html](https://github.com/wheresryan22/anatomy/blob/689dcf966e63d92be10a5d593c6e19e10acd4422/examples/raptor-engine/raptor-engine-light.html)
-- Upstream commit: `689dcf966e63d92be10a5d593c6e19e10acd4422`
-- Local file: `../../assets/showcase/anatomy-raptor-engine.gif`
+- [Token bucket](https://skills.wheresryan.sh/anatomy/collection/rate-limiter): the press held until the tank runs dry
+- [Temperature](https://skills.wheresryan.sh/anatomy/collection/sampling): the wheel heated, spun, cooled and spun again
+- [Afterburner](https://skills.wheresryan.sh/anatomy/collection/afterburner): the throttle raised until the afterburner lights
+- Local files: `../../assets/showcase/anatomy.gif`, and the top-right panel of `../../assets/hero.gif`
