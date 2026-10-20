@@ -27,6 +27,7 @@ Entries tagged `browser` need no install, account or API key.
 
 - **[DeepTutor](https://github.com/HKUDS/DeepTutor)**: generates and grades questions, and keeps a mastery path and learner memory between sessions. `self-hosted`
 - **[Agent Tutor Skill](https://github.com/Bhala-Srinivash/agent-tutor-skill)**: a tutoring protocol for Claude Code. Explain it back before moving on, quizzes without hints. `Claude Code`
+- **[sidecard](https://github.com/phunterlau/sidecard)**: a Claude Code mod that shows recall cards under the spinner while your agent works. Answers come after a countdown, and fading cards come back. `Claude Code`
 
 ### Follow a path
 
