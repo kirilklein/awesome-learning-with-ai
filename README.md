@@ -16,6 +16,7 @@ Entries tagged `browser` need no install, account or API key.
 
 - **[Transformer Explainer](https://github.com/poloclub/transformer-explainer)**: GPT-2 running in your browser. Type a sentence and watch attention and temperature change the next token. `browser` · [demo](https://poloclub.github.io/transformer-explainer/)
 - **[LLM Visualization](https://github.com/bbycroft/llm-viz)**: a small GPT in 3D, walked through one step at a time. `browser` · [demo](https://bbycroft.net/llm)
+- **[Token Trails](https://github.com/meyowu/llm-visualizer-token-trails)**: animated walk-throughs you step through, phase by phase, with real model numbers. Covers GPT-2's forward pass, other architectures, training, serving and agents. `browser` · [website](https://tokentrails.org/)
 
 ### Make your own lesson
 
