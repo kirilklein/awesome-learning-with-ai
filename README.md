@@ -32,6 +32,7 @@ Entries tagged `browser` need no install, account or API key.
 ### Follow a path
 
 - **[AI Engineering from Scratch](https://github.com/rohitg00/ai-engineering-from-scratch)**: about 500 build-it-yourself lessons from math foundations to agents, most with a quiz. `browser` · [website](https://aiengineeringfromscratch.com)
+- **[System Design](https://designed-to-scale.vercel.app/)**: a course by Dilum Sanjaya where each idea is an animated diagram you step through, from one server to load balancing, caching, sharding, consensus and queues. `browser`
 
 ## Showcase
 
