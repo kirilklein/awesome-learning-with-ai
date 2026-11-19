@@ -17,6 +17,7 @@ Entries tagged `browser` need no install, account or API key.
 - **[Transformer Explainer](https://github.com/poloclub/transformer-explainer)**: GPT-2 running in your browser. Type a sentence and watch attention and temperature change the next token. `browser` · [demo](https://poloclub.github.io/transformer-explainer/)
 - **[LLM Visualization](https://github.com/bbycroft/llm-viz)**: a small GPT in 3D, walked through one step at a time. `browser` · [demo](https://bbycroft.net/llm)
 - **[Dilum Sanjaya's primers](https://dilum.dev/)**: 3D courses you operate. Open packets byte by byte in [Protocol Explorer](https://protocol-explorer-alpha.vercel.app), swap parts on a live circuit in [Electronics 101](https://electronics-101-six.vercel.app), wire a board and run its code in [Learn ESP32](https://learn-esp32.vercel.app) and [Learn Arduino](https://learn-arduino-red.vercel.app). `browser`
+- **[Engine-X](https://engx3d.com/)**: an atlas of 15 real machines in 3D by Parth Parmar, from a turbocharger to a manual gearbox. Explode one into its parts, cut it in section, switch on X-ray and watch it run. `browser`
 
 ### Make your own lesson
 
